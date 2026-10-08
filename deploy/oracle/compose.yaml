@@ -1,0 +1,47 @@
+name: fyd-oracle
+x-app: &app
+  build:
+    context: ../../backend
+  env_file: ../../backend/.env
+  restart: unless-stopped
+  init: true
+  logging:
+    driver: json-file
+    options:
+      max-size: '10m'
+      max-file: '3'
+services:
+  api:
+    <<: *app
+    expose: ['8000']
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+  worker:
+    <<: *app
+    command: python -m fyd.worker
+    stop_grace_period: 60s
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      FYD_API_DOMAIN: ${FYD_API_DOMAIN:?Set your API hostname in deploy/oracle/.env}
+    ports: ['80:80', '443:443']
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+volumes:
+  caddy_data:
+  caddy_config:
