@@ -1,4 +1,5 @@
 import os
+import re
 import secrets
 import uuid
 import json
@@ -10,11 +11,16 @@ from langchain_core.messages import HumanMessage, SystemMessage
 app = FastAPI(title='FYD study service')
 MAX_FILE = 20_000_000
 
+def allowed_users():
+    raw=os.environ.get('ALLOWED_CLERK_USER_IDS', os.environ.get('ALLOWED_CLERK_USER_ID',''))
+    users={x.strip() for x in raw.split(',') if x.strip()}
+    return users if 0<len(users)<=2 and all(re.fullmatch(r'user_[A-Za-z0-9]+',x) for x in users) else set()
+
 def identity(x_fyd_secret: str = Header(default=''), x_fyd_user: str = Header(default='')):
     # Only the Clerk-verified Next.js gateway can call this private API.
     if not secrets.compare_digest(x_fyd_secret, required('FYD_BACKEND_SECRET')):
         raise HTTPException(401, 'Unauthorized')
-    if not x_fyd_user or x_fyd_user != required('ALLOWED_CLERK_USER_ID'):
+    if not x_fyd_user or x_fyd_user not in allowed_users():
         raise HTTPException(403, 'Account not allowed')
     return x_fyd_user
 
@@ -96,7 +102,7 @@ def chat(body:Chat,user=Depends(identity)):
     reserve(user)
     context='No documents selected. Use general knowledge and label it as such.'
     if docs:
-        result=cognee('search',json={'query':body.question,'datasets':[d['dataset'] for d in docs], 'search_type':'GRAPH_COMPLETION','only_context':True,'top_k':12})
+        result=cognee('search',json={'query':body.question,'datasets':[d['dataset'] for d in docs], 'search_type':'GRAPH_COMPLETION','only_context':True,'session_id':f'{user}:{body.conversation}','top_k':12})
         context=json.dumps(result,ensure_ascii=False)
         if len(context)>90000: raise HTTPException(422,'Retrieved material exceeds the answer capacity. Ask a more focused question.')
     prior=history(body.conversation,user)[-12:]

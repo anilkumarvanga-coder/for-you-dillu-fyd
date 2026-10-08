@@ -5,7 +5,7 @@ B.Pharmacy study companion using **Clerk + Supabase + OpenRouter + LangChain + C
 ## Architecture
 
 - **Next.js / Vercel:** FYD interface, Clerk session verification, same-origin API gateway.
-- **Clerk:** login and account sessions. Enable Google in your Clerk instance. A server-side Clerk user ID allowlist restricts this installation to one student.
+- **Clerk:** login and account sessions. Enable Google in your Clerk instance. A server-side Clerk user ID allowlist restricts this installation to up to two approved accounts.
 - **Supabase:** private originals, extracted pages, conversations, summaries, usage and durable job state. Uploads go directly to signed Supabase URLs; PDFs do not pass through Vercel request bodies.
 - **Python API + one worker:** persistent services separate from Vercel. The API accepts only the trusted gateway secret plus its verified user identity. The worker claims PostgreSQL jobs and records progress.
 - **LangChain:** chat/vision prompt orchestration through ChatOpenAI's OpenAI-compatible interface.
@@ -30,7 +30,7 @@ Use a **direct PostgreSQL connection or session-mode pooler**, with SSL enabled,
 
 ## 2. Clerk
 
-Create a Clerk application, enable Google login, and configure the deployed website's domain. Fill the frontend `.env.example` values. Sign in as the intended student, copy that account's `user_...` ID from Clerk, and put it in `ALLOWED_CLERK_USER_ID` on both Vercel and the Python service. Missing or different IDs are denied. Existing Supabase-auth accounts and browser-local chats are not automatically migrated.
+Create a Clerk application, enable Google login, and configure the deployed website's domain. Fill the frontend `.env.example` values. Sign in with each of the two intended Google accounts to create their Clerk users. Before approval they can authenticate but cannot access FYD documents or AI. In Clerk Dashboard → Users, copy each account's `user_...` ID. Set `ALLOWED_CLERK_USER_IDS=user_FIRST,user_SECOND` on both Vercel and the Python API/worker environment. Redeploy/restart those services. One or two unique IDs are accepted; empty, malformed or more than two IDs deny all access. The legacy singular variable is supported only when the plural variable is absent. Each account has separate documents, chats, summaries and operation quotas. Cognee search sessions are scoped by account and conversation. This is application access control, not a Clerk signup block: other people may create Clerk accounts but cannot use the study APIs. If you also want to block registration, configure Clerk's signup restrictions separately; plan requirements can apply. Existing Supabase-auth accounts and browser-local chats are not automatically migrated.
 
 ## 3. Cognee and OpenRouter
 

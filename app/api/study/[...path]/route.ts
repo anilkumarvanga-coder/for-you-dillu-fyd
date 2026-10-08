@@ -1,3 +1,4 @@
+import { allowedClerkUsers } from '../../../../lib/access';
 import { auth } from '@clerk/nextjs/server';
 export const runtime='nodejs';
 export const maxDuration=300;
@@ -6,7 +7,7 @@ async function forward(req:Request,{params}:{params:Promise<{path:string[]}>}){
  if(req.method==='POST' && req.headers.get('origin')!==new URL(req.url).origin)return Response.json({error:'Invalid request origin.'},{status:403});
  const {userId}=await auth();
  if(!userId)return Response.json({error:'Sign in first.'},{status:401});
- if(!process.env.ALLOWED_CLERK_USER_ID || userId!==process.env.ALLOWED_CLERK_USER_ID)return Response.json({error:'This study space is reserved for the configured student.'},{status:403});
+ if(!allowedClerkUsers(process.env.ALLOWED_CLERK_USER_IDS ?? process.env.ALLOWED_CLERK_USER_ID).includes(userId))return Response.json({error:'This study space is restricted to approved accounts.'},{status:403});
  const path=(await params).path.join('/');
  if(!routes.some(r=>r.test(path)))return new Response(null,{status:404});
  if(!process.env.FYD_BACKEND_URL||!process.env.FYD_BACKEND_SECRET)return Response.json({error:'The study backend needs configuration.'},{status:503});

@@ -5,6 +5,7 @@ from fyd.worker import groups
 
 def test_rejects_forged_gateway_and_other_account(monkeypatch):
     monkeypatch.setenv('FYD_BACKEND_SECRET','private-test-value')
+    monkeypatch.delenv('ALLOWED_CLERK_USER_IDS',raising=False)
     monkeypatch.setenv('ALLOWED_CLERK_USER_ID','user_dillu')
     with pytest.raises(HTTPException) as error: identity('wrong','user_dillu')
     assert error.value.status_code==401
@@ -26,3 +27,19 @@ def test_document_lookup_always_scoped_to_owner(monkeypatch):
     monkeypatch.setattr('fyd.api.rows',query)
     with pytest.raises(HTTPException) as error: document('doc-id','user_dillu')
     assert error.value.status_code==404
+
+@pytest.mark.parametrize('setting,expected',[
+    ('user_dillu,user_anil',{'user_dillu','user_anil'}),
+    (' user_dillu , user_dillu ',{'user_dillu'}),
+    ('user_a,user_b,user_c',set()),('',set()),('bad,user_anil',set())])
+def test_two_account_allowlist(monkeypatch,setting,expected):
+    from fyd.api import allowed_users
+    monkeypatch.setenv('ALLOWED_CLERK_USER_IDS',setting)
+    assert allowed_users()==expected
+
+def test_second_account_allowed_third_denied(monkeypatch):
+    monkeypatch.setenv('FYD_BACKEND_SECRET','test-secret')
+    monkeypatch.setenv('ALLOWED_CLERK_USER_IDS','user_dillu,user_anil')
+    assert identity('test-secret','user_anil')=='user_anil'
+    with pytest.raises(HTTPException) as error: identity('test-secret','user_third')
+    assert error.value.status_code==403
